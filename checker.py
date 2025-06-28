@@ -11,6 +11,7 @@ import logging
 import threading
 from datetime import datetime
 from dotenv import load_dotenv
+from logging.handlers import RotatingFileHandler
 
 # --- Load secrets from .env ---
 load_dotenv()
@@ -29,12 +30,19 @@ last_check_time = None
 bib_count = 0
 
 # --- Logging setup ---
-logging.basicConfig(
-    filename=LOG_FILE,
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
+log_formatter = logging.Formatter(
+    "%(asctime)s [%(levelname)s] %(message)s", "%Y-%m-%d %H:%M:%S"
 )
+
+log_handler = RotatingFileHandler(
+    LOG_FILE, maxBytes=1024 * 512, backupCount=3, encoding='utf-8'
+)
+log_handler.setFormatter(log_formatter)
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+logger.addHandler(log_handler)
+
 
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -172,7 +180,15 @@ def main():
 
     while True:
         last_check_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        logging.info("Check started. Fetching latest bibs from the site...")
         bibs = fetch_bibs()
+        prev_count = bib_count
+        new_bibs_found = 0
+
+        if not bibs:
+            logging.info("No bibs found on the page.")
+        else:
+            logging.info(f"{len(bibs)} bib(s) found on the page. Checking for new entries...")
 
         for bib in bibs:
             bib_key = f"{bib['event_name']}|{bib['transfer_id']}"
@@ -180,6 +196,7 @@ def main():
                 seen_bibs.add(bib_key)
                 append_bib_to_csv(bib)
                 bib_count += 1
+                new_bibs_found += 1
 
                 message = (
                     f"🎉 <b>New Bib Available!</b>\n"
@@ -193,7 +210,11 @@ def main():
                 logging.info(f"New bib listed: {bib}")
                 send_telegram_message(message)
 
+        if bibs and new_bibs_found == 0:
+            logging.info("No new bibs since last check.")
+
         time.sleep(CHECK_INTERVAL_SECONDS)
+
 
 if __name__ == "__main__":
     main()

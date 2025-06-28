@@ -5,7 +5,7 @@ venv/
 .env
 
 # Ignore log files
-*.log
+cph.log*
 
 # Ignore CSV data (optional — you can remove this if you want to track bibs.csv)
 bibs.csv
