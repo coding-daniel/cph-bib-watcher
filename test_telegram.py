@@ -1,3 +1,7 @@
+# This file is part of cph-bib-watcher.
+# Copyright (c) 2025 Daniel Pina.
+# Licensed under the MIT License. See the LICENSE file in the project root for details.
+
 import requests
 import os
 from dotenv import load_dotenv
