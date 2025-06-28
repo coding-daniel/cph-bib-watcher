@@ -4,6 +4,7 @@ import time
 import csv
 import os
 import logging
+import threading
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -114,18 +115,64 @@ def append_bib_to_csv(bib):
             writer.writerow(["Event", "Transfer ID", "Price", "Status", "Timestamp"])
         writer.writerow(new_row)
 
+def listen_for_commands():
+    logging.info("📬 Listening for Telegram commands...")
+    last_update_id = None
+
+    while True:
+        try:
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
+            response = requests.get(url)
+            data = response.json()
+
+            for update in data.get("result", []):
+                update_id = update.get("update_id")
+                message = update.get("message", {})
+                text = message.get("text", "")
+                chat_id = str(message.get("chat", {}).get("id", ""))
+
+                # Only respond to your chat
+                if update_id == last_update_id or chat_id != CHAT_ID:
+                    continue
+
+                last_update_id = update_id
+
+                if text.strip().lower() == "/status":
+                    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    reply = (
+                        f"🟢 Bib monitor is running\n"
+                        f"⏱️ Last checked: {last_check_time or 'N/A'}\n"
+                        f"⏳ Check interval: {CHECK_INTERVAL_SECONDS} seconds\n"
+                        f"📊 Bibs found since startup: {bib_count}"
+                    )
+                    send_telegram_message(reply)
+
+        except Exception as e:
+            logging.error(f"Command listener error: {e}")
+
+        time.sleep(5)
+
+
+last_check_time = None
+bib_count = 0
+
 def main():
     seen_bibs = load_saved_bibs()
     logging.info("📡 Bib monitor started.")
     send_telegram_message("🏁 CPH Half 2025 bib monitor is now running!")
 
+    threading.Thread(target=listen_for_commands, daemon=True).start()
+
     while True:
+        global last_check_time, bib_count
+        last_check_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         bibs = fetch_bibs()
         for bib in bibs:
             bib_key = f"{bib['event_name']}|{bib['transfer_id']}"
             if bib_key not in seen_bibs:
                 seen_bibs.add(bib_key)
                 append_bib_to_csv(bib)
+                bib_count += 1
 
                 timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 message = (
