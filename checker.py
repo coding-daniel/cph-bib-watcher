@@ -17,7 +17,7 @@ URL = "https://secure.onreg.com/onreg2/bibexchange/?eventid=6736&language=us"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 CSV_FILE = "bibs.csv"
 LOG_FILE = "cph.log"
-CHECK_INTERVAL_SECONDS = 300  # Change to 300 (5 min), etc. if needed
+CHECK_INTERVAL_SECONDS = 300  # 5 minutes
 # -----------------------
 
 # --- Logging setup ---
@@ -53,30 +53,42 @@ def fetch_bibs():
     soup = BeautifulSoup(response.content, 'html.parser')
 
     # Check for "no bibs" message
-    no_bibs_message = soup.find("b", string="There are currently no race numbers for sale. Try again later.")
-    if no_bibs_message:
+    no_bibs = soup.find("b", string="There are currently no race numbers for sale. Try again later.")
+    if no_bibs:
         logging.info("No bibs currently available.")
         return []
 
-    # Try to find the bibs table
-    table = soup.find("table")
+    table = soup.select_one("table.table")
     if not table:
-        logging.warning("No table found and no 'no bibs' message. Page format might have changed.")
+        logging.warning("Bib table not found. HTML structure might have changed.")
         return []
 
     bibs = []
     rows = table.find_all("tr")[1:]  # Skip header
+
     for row in rows:
         cells = row.find_all("td")
         if len(cells) < 4:
-            continue  # Skip malformed rows
-        bib = {
-            "event_name": cells[0].get_text(strip=True),
-            "transfer_id": cells[1].get_text(strip=True),
-            "price": cells[2].get_text(strip=True),
-            "status": cells[3].get_text(strip=True)
-        }
-        bibs.append(bib)
+            logging.warning("Skipping malformed row (not enough columns)")
+            continue
+
+        try:
+            event_name = cells[0].get_text(strip=True)
+            transfer_id = cells[1].get_text(strip=True)
+            price = cells[2].get_text(strip=True)
+            status_link = cells[3].find("a")
+            status = status_link.get_text(strip=True) if status_link else cells[3].get_text(strip=True)
+
+            bib = {
+                "event_name": event_name,
+                "transfer_id": transfer_id,
+                "price": price,
+                "status": status
+            }
+            bibs.append(bib)
+        except Exception as e:
+            logging.error(f"Failed to parse row: {e}")
+            continue
 
     return bibs
 
@@ -85,9 +97,9 @@ def load_saved_bibs():
     if os.path.exists(CSV_FILE):
         with open(CSV_FILE, mode='r', newline='', encoding='utf-8') as file:
             reader = csv.reader(file)
-            next(reader, None)  # Skip header
+            next(reader, None)
             for row in reader:
-                key = "|".join(row[:2])  # event_name + transfer_id
+                key = "|".join(row[:2])  # event + transfer ID
                 seen.add(key)
     return seen
 
