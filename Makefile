@@ -7,7 +7,7 @@ venv:
 
 run:
 	@echo "🚀 Running bib checker..."
-	. venv/bin/activate && python3 checker.py
+	. venv/bin/activate && python3 main.py
 
 freeze:
 	@echo "📌 Freezing installed packages to requirements.txt..."

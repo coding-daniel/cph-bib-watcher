@@ -1,12 +1,14 @@
 # Changelog
 
 ## [Unreleased]
-- Split `checker.py` into reusable modules
 - Add `/export` command to Telegram bot
 - Add unit tests
 
 ## [2025-06-28]
 ### Added
+- `/seen` Telegram command to show total number of bibs recorded in CSV
+- `utils.py` module with `count_csv_entries()` helper
+- Improved `/status` command handling with correct offset logic
 - Fixed bib table parsing for current HTML structure
 - MIT license file and short headers in all source files
 - `/status` Telegram command for runtime monitoring
